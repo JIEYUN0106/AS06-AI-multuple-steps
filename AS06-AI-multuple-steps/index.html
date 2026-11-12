@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>滾輪切換五頁</title>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    .panel {
+      height: 100vh;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-family: system-ui, sans-serif;
+      font-size: clamp(2rem, 6vw, 4rem);
+      font-weight: 700;
+    }
+
+    .page-one          { background-color: #214e74; }
+    .page-two          { background-color: #256653; }
+    .page-three-top    { background-color: #66458a; }
+    .page-three-bottom { background-color: #8f4163; }
+    .page-four         { background-color: #964521; }
+    .page-five         { background-color: #36466f; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="panel page-one">第一頁</div>
+    <div class="panel page-two">第二頁</div>
+    <div class="panel page-three-top">第三頁上半</div>
+    <div class="panel page-three-bottom">第三頁下半</div>
+    <div class="panel page-four">第四頁</div>
+    <div class="panel page-five">第五頁</div>
+  </main>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script>
+    $(function () {
+      const panels = $('.panel').get();
+      const scroller = document.scrollingElement;
+      const $scroller = $(scroller);
+      const animationDuration = 750;
+
+      // 色塊索引從零開始。第三頁的上半與下半分別是二和三。
+      const thirdTop = 2;
+      const thirdBottom = 3;
+
+      let currentPanel = 0;
+      let animating = false;
+      let position = 0;
+
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+
+      scroller.scrollTop = 0;
+
+      function panelTop(index) {
+        return panels[index].getBoundingClientRect().top + scroller.scrollTop;
+      }
+
+      function moveTo(index) {
+        animating = true;
+
+        $scroller.animate(
+          { scrollTop: panelTop(index) },
+          animationDuration,
+          'swing',
+          function () {
+            currentPanel = index;
+            position = panelTop(index);
+            scroller.scrollTop = position;
+            animating = false;
+          }
+        );
+      }
+
+      function wheelDistance(event) {
+        // 先讀取滾輪單位，再將行數或頁數換算成像素。
+        const mode = event.deltaMode;
+        const distance = event.deltaY;
+
+        if (mode === 1) return distance * 16;
+        if (mode === 2) return distance * scroller.clientHeight;
+        return distance;
+      }
+
+      function handleWheel(event) {
+        event.preventDefault();
+
+        if (animating) return;
+
+        const distance = wheelDistance(event);
+        if (distance === 0) return;
+
+        const direction = Math.sign(distance);
+        const inThirdPage =
+          currentPanel === thirdTop || currentPanel === thirdBottom;
+
+        if (inThirdPage) {
+          const top = panelTop(thirdTop);
+          const bottom = panelTop(thirdBottom);
+
+          // 先判斷捲動前的位置。抵達邊界後，再收到同方向的輸入才換頁。
+          if (direction > 0 && position >= bottom) {
+            moveTo(thirdBottom + 1);
+            return;
+          }
+
+          if (direction < 0 && position <= top) {
+            moveTo(thirdTop - 1);
+            return;
+          }
+
+          // 保留小數位移，讓幅度很小的滾輪輸入也能累積。
+          position = Math.max(top, Math.min(bottom, position + distance));
+          scroller.scrollTop = position;
+          return;
+        }
+
+        // 第二頁往下會進入第三頁上半。第四頁往上會進入第三頁下半。
+        const nextPanel = currentPanel + direction;
+        if (nextPanel >= 0 && nextPanel < panels.length) {
+          moveTo(nextPanel);
+        }
+      }
+
+      // 允許取消瀏覽器的預設捲動，讓程式控制每次的移動距離。
+      window.addEventListener('wheel', handleWheel, { passive: false });
+    });
+  </script>
+</body>
+</html>
